@@ -373,7 +373,7 @@ crontab -e
 
 This is an **optional Python script** for discovering and indexing .onion URLs from paginated directory sites. It must be downloaded and used separately from the main Go scraper.
 
-**Download manually from the releases page or repository.**
+> **⚠️ NOT included in the EXE release** - Download manually from the repository or releases page.
 
 **Features:**
 - Paginated crawling (follows 'Next' page links automatically)
@@ -398,9 +398,10 @@ python recursive-link-scraper.py --file urls.txt --pages 100
 ```
 
 **Typical Workflow:**
-1. Use `recursive-link-scraper.py` to discover and index .onion URLs from directory sites
-2. Export discovered URLs to a text file (`targets.txt`)
-3. Use that file as input for the main Go scraper: `all_in_one_scraper.exe -targets targets.txt`
+1. Download `recursive-link-scraper.py` separately (not included in EXE)
+2. Use it to discover and index .onion URLs from directory sites
+3. Export discovered URLs to a text file (`targets.txt`)
+4. Use that file as input for the main Go scraper: `all_in_one_scraper.exe -targets targets.txt`
 
 **Why Manual Download?**
 This script is designed to be used independently based on user needs. It requires Python and different dependencies than the main Go scraper, so it's kept as a separate tool that you download only when needed.
