@@ -22,9 +22,48 @@ The scraper features intelligent file detection, automatic resume capability, pr
 
 ## Prerequisites
 
-### 1. Tor Expert Bundle Setup
+Before running the scraper, you need to install several dependencies and configure Tor.
 
-Before running the scraper, you need to configure Tor with multiple SOCKS ports for parallel connections.
+### Required Software
+
+| Software | Purpose | Download Link |
+|----------|---------|---------------|
+| **Go 1.21+** | Build and run the scraper | [golang.org/dl](https://golang.org/dl/) |
+| **Tor Expert Bundle** | Anonymous routing through Tor network | [torproject.org](https://www.torproject.org/download/tor/) |
+| **Git** | Clone dependencies (optional) | [git-scm.com](https://git-scm.com/download/win) |
+
+### Step 1: Install Go
+
+1. Download Go from [golang.org/dl](https://golang.org/dl/)
+2. Run the installer (reboot after installation)
+3. Verify installation:
+   ```powershell
+   go version
+   # Should show: go version go1.21.x windows/amd64
+   ```
+
+### Step 2: Install Playwright Dependencies
+
+The scraper uses Playwright for browser automation. Install the required browsers:
+
+```powershell
+# After installing Go, run:
+go install github.com/playwright-community/playwright-go/cmd/playwright@latest
+
+# Install browser binaries (Chromium is required)
+playwright install chromium
+```
+
+If `playwright` command is not found, add Go bin to PATH:
+```powershell
+$env:Path += ";C:\Users\$env:USERNAME\go\bin"
+```
+
+### Step 3: Tor Expert Bundle Setup
+
+1. Download **Tor Expert Bundle** for Windows from [torproject.org](https://www.torproject.org/download/tor/)
+2. Extract to `C:\tor-expert-bundle-windows-x86_64-15.0.7\`
+3. Configure the `torrc` file (see Tor Configuration below)
 
 **Tor Configuration Repository**: [https://github.com/SkunkApe-jp/my-torrc-config.git](https://github.com/SkunkApe-jp/my-torrc-config.git)
 
@@ -101,6 +140,111 @@ example3.onion
 | `-inter-delay` | `0` | Inter-site delay (0=Gaussian 8-15min) |
 | `-intra-delay` | `0` | Intra-page delay (0=60-120sec) |
 | `-page-load-wait` | `0` | Seconds to wait after page load |
+
+---
+
+## Build from Source
+
+### Option 1: Run Directly (Development)
+
+```powershell
+cd C:\scraper1\go_scripts\playwright\violent-tor-scraper
+go mod init violent-tor-scraper 2>$null; go get github.com/playwright-community/playwright-go golang.org/x/net/proxy
+go run all_in_one_scraper.go
+```
+
+### Option 2: Build EXE (Distribution)
+
+Build a standalone Windows executable:
+
+```powershell
+cd C:\scraper1\go_scripts\playwright\violent-tor-scraper
+
+# Initialize module and get dependencies
+go mod init violent-tor-scraper
+go get github.com/playwright-community/playwright-go golang.org/x/net/proxy
+
+# Build optimized Windows x64 EXE
+go build -ldflags="-s -w" -o all_in_one_scraper.exe all_in_one_scraper.go
+
+# Verify the EXE was created
+ls all_in_one_scraper.exe
+```
+
+**Build flags explained:**
+- `-ldflags="-s -w"` - Strip debug info and symbol table (smaller EXE)
+- `-o` - Output filename
+
+#### What the EXE Contains
+
+The built EXE includes:
+- ✅ All Go code compiled to native machine code
+- ✅ Scraper logic and file handlers
+- ❌ **Not included**: Playwright browser binaries (must be installed separately)
+- ❌ **Not included**: Tor Expert Bundle (must be installed separately)
+
+**Users of the EXE still need to install:**
+1. Playwright browsers: `playwright install chromium`
+2. Tor Expert Bundle with configured `torrc`
+
+---
+
+## Creating GitHub Releases
+
+To publish the EXE for others:
+
+### Manual Release (One-time)
+
+1. Build the EXE (see above)
+2. Go to GitHub repo → **Releases** → **Create a new release**
+3. Tag: `v1.0.0`
+4. Title: `Release v1.0.0 - Windows x64`
+5. Attach: `all_in_one_scraper.exe`
+6. Add release notes
+
+### Automated Releases (GitHub Actions)
+
+Create `.github/workflows/release.yml`:
+
+```yaml
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      
+      - name: Build EXE
+        run: |
+          go mod init violent-tor-scraper
+          go get github.com/playwright-community/playwright-go golang.org/x/net/proxy
+          go build -ldflags="-s -w" -o all_in_one_scraper.exe all_in_one_scraper.go
+      
+      - name: Upload Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: all_in_one_scraper.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+Then push a tag to trigger:
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
 
 ---
 

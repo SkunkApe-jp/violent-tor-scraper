@@ -1,0 +1,51 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Get dependencies
+        run: |
+          go mod init violent-tor-scraper
+          go get github.com/playwright-community/playwright-go
+          go get golang.org/x/net/proxy
+
+      - name: Build Windows x64 EXE
+        run: |
+          go build -ldflags="-s -w" -o all_in_one_scraper.exe all_in_one_scraper.go
+          ls -la all_in_one_scraper.exe
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: all_in_one_scraper.exe
+          body: |
+            ## All-in-One Tor Scraper ${{ github.ref_name }}
+
+            ### Requirements to run this EXE:
+            1. **Playwright browsers**: `playwright install chromium`
+            2. **Tor Expert Bundle** with configured `torrc`
+            3. See full setup instructions in README.md
+
+            ### Quick Start
+            ```powershell
+            all_in_one_scraper.exe -targets targets.yaml
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
