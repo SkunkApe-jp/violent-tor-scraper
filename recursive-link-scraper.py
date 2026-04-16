@@ -26,7 +26,21 @@ def is_valid_onion_url(url):
     except:
         return False
 
-def extract_onion_urls_from_text(text, base_url=None):
+def is_media_file(url):
+    """Check if URL points to a media/static file (not a page)."""
+    media_extensions = {
+        '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.webp', '.ico',
+        '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv',
+        '.mp3', '.wav', '.ogg', '.flac', '.aac',
+        '.css', '.js', '.json', '.xml', '.pdf', '.doc', '.docx',
+        '.zip', '.rar', '.tar', '.gz', '.7z',
+        '.exe', '.dmg', '.apk'
+    }
+    parsed = urlparse(url)
+    path = parsed.path.lower()
+    return any(path.endswith(ext) for ext in media_extensions)
+
+def extract_onion_urls_from_text(text, base_url=None, add_trailing_slash=False):
     """Extract .onion URLs from text, including relative links."""
     urls = []
     
@@ -35,11 +49,13 @@ def extract_onion_urls_from_text(text, base_url=None):
     matches = re.findall(onion_pattern, text, re.IGNORECASE)
     for match in matches:
         url = match if match.startswith('http') else f'http://{match}'
-        if is_valid_onion_url(url):
+        if is_valid_onion_url(url) and not is_media_file(url):
             parsed = urlparse(url)
             normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-            if normalized.endswith('/'):
+            if normalized.endswith('/') and not add_trailing_slash:
                 normalized = normalized[:-1]
+            elif not normalized.endswith('/') and add_trailing_slash:
+                normalized += '/'
             urls.append(normalized)
     
     # Pattern 2: Relative links (href="/path" or href="path")
@@ -52,20 +68,23 @@ def extract_onion_urls_from_text(text, base_url=None):
         rel_matches = re.findall(rel_pattern, text, re.IGNORECASE)
         for match in rel_matches:
             full_url = urljoin(base_url, match)
-            if full_url.startswith(base_domain):
+            if full_url.startswith(base_domain) and not is_media_file(full_url):
                 parsed = urlparse(full_url)
                 normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-                if normalized.endswith('/'):
+                if normalized.endswith('/') and not add_trailing_slash:
                     normalized = normalized[:-1]
+                elif not normalized.endswith('/') and add_trailing_slash:
+                    normalized += '/'
                 urls.append(normalized)
     
     return list(set(urls))
 
 class OnionIndexerPro:
-    def __init__(self, db_name="onion_database.db", timeout=30, delay=None, max_pages=100):
+    def __init__(self, db_name="onion_database.db", timeout=30, delay=None, max_pages=100, add_trailing_slash=False):
         self.timeout = timeout
         self.delay = delay
         self.max_pages = max_pages
+        self.add_trailing_slash = add_trailing_slash
         self.db_name = db_name
         self.proxies = {
             'http': 'socks5h://127.0.0.1:9050',
@@ -154,7 +173,7 @@ class OnionIndexerPro:
                 response.raise_for_status()
                 
                 print(f"  [~] Extracting onion URLs from response...")
-                found_onions = extract_onion_urls_from_text(response.text, base_url=current_url)
+                found_onions = extract_onion_urls_from_text(response.text, base_url=current_url, add_trailing_slash=self.add_trailing_slash)
                 print(f"  [+] Raw .onion matches: {len(re.findall(r'[a-z0-9]+\.onion', response.text, re.IGNORECASE))}")
                 print(f"  [+] Raw href links: {len(re.findall(r'href=[\"\']((?!http|mailto|javascript)[^\"\']+)[\"\']', response.text, re.IGNORECASE))}")
                 print(f"  [+] Extracted URLs: {found_onions[:5]}{'...' if len(found_onions) > 5 else ''}")
@@ -206,6 +225,7 @@ def main():
     parser.add_argument('--output', default='indexed_onions.txt', help='Text export filename')
     parser.add_argument('--delay', type=float, default=None, help='Delay between requests (default: random 1-5s)')
     parser.add_argument('--pages', type=int, default=50)
+    parser.add_argument('--add-trailing-slash', action='store_true', help='Add trailing slash to all URLs')
     
     args = parser.parse_args()
     
@@ -228,7 +248,7 @@ def main():
                     urls_to_process.append(line)
         print(f"[*] Loaded {len(urls_to_process)} URL(s) from {args.file}")
     
-    scraper = OnionIndexerPro(db_name=args.db, max_pages=args.pages)
+    scraper = OnionIndexerPro(db_name=args.db, max_pages=args.pages, add_trailing_slash=args.add_trailing_slash)
     
     for i, url in enumerate(urls_to_process):
         print(f"\n[*] Processing URL {i+1}/{len(urls_to_process)}: {url}")
