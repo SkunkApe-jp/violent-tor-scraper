@@ -143,6 +143,97 @@ example3.onion
 
 ---
 
+## Pro Version (`11all_in_one_scraper.go`)
+
+An enhanced version of the scraper with advanced crawling capabilities, resource management, and parallel downloading.
+
+### Running the Pro Version
+
+```bash
+go run 11all_in_one_scraper.go -targets ../all_targets.yaml -output ../scraped_all -ports 9050,9051,9052 -workers 3
+```
+
+### Pro-Only Features
+
+| Feature | Description |
+|---------|-------------|
+| **BFS Crawling** | Breadth-first crawling with depth control (`-depth`) |
+| **Path Constraints** | Stay under starting path or use regex filters |
+| **Resource Blocking** | Block images/fonts/media to reduce Tor load |
+| **Parallel Downloads** | Multiple concurrent downloads per target (`-dl-workers`) |
+| **Size Limits** | Per-file and per-target byte limits |
+| **Metadata Export** | JSON metadata with SHA256, content-type, final URL |
+| **Failure Dumps** | Auto-save screenshots and HTML on navigation failures |
+| **Preflight Validation** | HEAD/GET preflight to validate content before downloading |
+
+### Pro Version Flags
+
+All original flags plus:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-stay-under-path` | `true` | Only crawl URLs under the starting path |
+| `-max-pages` | `2000` | Maximum pages to crawl per target |
+| `-max-files` | `20000` | Maximum files to capture per target |
+| `-max-bytes-target` | `0` | Max bytes per target (0 = unlimited) |
+| `-max-bytes-file` | `0` | Max bytes per file (0 = unlimited) |
+| `-dl-retries` | `12` | Download retries per file |
+| `-dl-workers` | `1` | Parallel downloads per target |
+| `-allow-path-regex` | `""` | Only crawl URLs matching this path regex |
+| `-deny-path-regex` | `""` | Skip URLs matching this path regex |
+| `-deny-query-keys` | `""` | Comma-separated query keys to skip (e.g., `logout,delete`) |
+| `-max-runtime-target` | `0` | Max seconds per target (0 = unlimited) |
+| `-block-resources` | `true` | Block images/fonts/media to reduce Tor load |
+| `-dump-on-fail` | `true` | Save screenshot+HTML on navigation failures |
+| `-dl-preflight` | `false` | Preflight downloads to validate content-length/type |
+
+### Folder Structure (Pro Version)
+
+The Pro version organizes files differently:
+
+```
+scraped_all/
+├── [domain]/
+│   ├── [subpath]/
+│   │   └── file.pdf
+│   └── another_file.zip
+└── metadata/
+    ├── [domain]_files.json      # SHA256, size, content-type for each file
+    ├── [domain]_summary.json    # Target summary (files detected, bytes downloaded)
+    └── failures/
+        └── [domain]/
+            ├── [timestamp]_goto.png   # Screenshot on failure
+            └── [timestamp]_goto.html  # HTML dump on failure
+```
+
+### Progress Output (Pro Version)
+
+The Pro version shows enhanced progress with file counters:
+
+```
+[CHECK] Verifying Tor connection...
+[CHECK] Tor OK via port 9050
+[CHECK] Starting All-in-One Scraper v1.0...
+[CONFIG] Workers: 3 | Ports: [9050 9051 9052] | Depth: 2
+
+[THREAD 0] ..... example1.onion (via port 9050)
+[DEBUG] Starting crawl with basePath=/ depth=2 max-pages=2000
+[LOAD] http://example1.onion/
+[QUEUE] Found subdirectory: http://example1.onion/books/ (from href: /books/)
+[DETECTED] [documents] book1.pdf
+[FOUND] [archives] dataset.zip
+[RESUME] Skipped 2 already downloaded files, 3 remaining
+[DOCUMENT] [File 1/3] book1.pdf: [===============================>] 100.0% (5120/5120 KB)
+[ARCHIVE] [File 2/3] dataset.zip: [===============================>] 100.0% (2048/2048 KB)
+[SUMMARY] Downloaded: archives: 1 | documents: 1
+[OK] Downloaded 3 files from example1.onion
+[SLEEP] Inter-site delay: 12m34s
+
+[DONE] All-in-One scraping complete!
+```
+
+---
+
 ## Build from Source
 
 ### Option 1: Run Directly (Development)
@@ -164,11 +255,14 @@ cd C:\scraper1\go_scripts\playwright\violent-tor-scraper
 go mod init violent-tor-scraper
 go get github.com/playwright-community/playwright-go golang.org/x/net/proxy
 
-# Build optimized Windows x64 EXE
+# Build standard version
 go build -ldflags="-s -w" -o all_in_one_scraper.exe all_in_one_scraper.go
 
+# Or build the Pro version (recommended for advanced crawling)
+go build -ldflags="-s -w" -o all_in_one_scraper_pro.exe 11all_in_one_scraper.go
+
 # Verify the EXE was created
-ls all_in_one_scraper.exe
+ls all_in_one_scraper*.exe
 ```
 
 **Build flags explained:**
@@ -217,24 +311,46 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-      
-      - name: Build EXE
+
+      - name: Get dependencies
         run: |
           go mod init violent-tor-scraper
-          go get github.com/playwright-community/playwright-go golang.org/x/net/proxy
+          go get github.com/playwright-community/playwright-go
+          go get golang.org/x/net/proxy
+
+      - name: Build EXEs
+        run: |
           go build -ldflags="-s -w" -o all_in_one_scraper.exe all_in_one_scraper.go
-      
-      - name: Upload Release
+          go build -ldflags="-s -w" -o all_in_one_scraper_pro.exe 11all_in_one_scraper.go
+          Get-ChildItem *.exe | Select-Object Name, Length, LastWriteTime
+
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: all_in_one_scraper.exe
+          name: Release ${{ github.ref_name }}
+          files: |
+            all_in_one_scraper.exe
+            all_in_one_scraper_pro.exe
+          body: |
+            ## All-in-One Tor Scraper ${{ github.ref_name }}
+
+            ### Included Executables
+            - `all_in_one_scraper.exe` - Standard version
+            - `all_in_one_scraper_pro.exe` - Pro version with advanced crawling
+
+            ### Requirements to run:
+            1. **Playwright browsers**: `playwright install chromium`
+            2. **Tor Expert Bundle** with configured `torrc`
+            3. See full setup instructions in README.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -248,9 +364,9 @@ git push origin v1.0.0
 
 ---
 
-## Folder Structure
+## Folder Structure (Original Version)
 
-Downloads are organized as follows:
+Downloads are organized by category:
 
 ```
 scraped_all/
@@ -269,6 +385,8 @@ scraped_all/
 └── executables/
     └── [domain_folder]/
 ```
+
+> **Note**: The Pro version (`11all_in_one_scraper.go`) uses a domain-based structure. See the [Pro Version section](#pro-version-11all_in_one_scrapergo) for details.
 
 ---
 
@@ -395,6 +513,9 @@ python recursive-link-scraper.py --url "http://example-index.onion" --db onion_i
 
 # Or process multiple URLs from a file
 python recursive-link-scraper.py --file urls.txt --pages 100
+
+# Add trailing slashes to all extracted URLs
+python recursive-link-scraper.py --url "http://example-index.onion" --add-trailing-slash
 ```
 
 **Typical Workflow:**
@@ -405,6 +526,24 @@ python recursive-link-scraper.py --file urls.txt --pages 100
 
 **Why Manual Download?**
 This script is designed to be used independently based on user needs. It requires Python and different dependencies than the main Go scraper, so it's kept as a separate tool that you download only when needed.
+
+### `add_trailing_slash.py` - URL Normalization Utility
+
+A simple Python utility to ensure all URLs in a file end with a trailing slash. Useful for normalizing URL lists before scraping.
+
+**Features:**
+- Process files in-place or create new output files
+- Preserves empty lines and comments
+
+**Usage:**
+
+```powershell
+# Create new file with trailing slashes
+python add_trailing_slash.py urls.txt -o urls_with_slashes.txt
+
+# Modify file in place
+python add_trailing_slash.py urls.txt -i
+```
 
 ---
 

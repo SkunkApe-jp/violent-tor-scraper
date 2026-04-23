@@ -25,10 +25,11 @@ jobs:
           go get github.com/playwright-community/playwright-go
           go get golang.org/x/net/proxy
 
-      - name: Build Windows x64 EXE
+      - name: Build Windows x64 EXEs
         run: |
           go build -ldflags="-s -w" -o all_in_one_scraper.exe all_in_one_scraper.go
-          Get-ChildItem all_in_one_scraper.exe | Select-Object Name, Length, LastWriteTime
+          go build -ldflags="-s -w" -o all_in_one_scraper_pro.exe 11all_in_one_scraper.go
+          Get-ChildItem *.exe | Select-Object Name, Length, LastWriteTime
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -36,18 +37,28 @@ jobs:
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
-          files: all_in_one_scraper.exe
+          files: |
+            all_in_one_scraper.exe
+            all_in_one_scraper_pro.exe
           body: |
             ## All-in-One Tor Scraper ${{ github.ref_name }}
 
-            ### Requirements to run this EXE:
+            ### Included Executables
+            - `all_in_one_scraper.exe` - Standard version (category-based folder structure)
+            - `all_in_one_scraper_pro.exe` - Pro version with advanced crawling, BFS depth control, parallel downloads, and metadata export
+
+            ### Requirements to run:
             1. **Playwright browsers**: `playwright install chromium`
             2. **Tor Expert Bundle** with configured `torrc`
             3. See full setup instructions in README.md
 
             ### Quick Start
             ```powershell
+            # Standard version
             all_in_one_scraper.exe -targets targets.yaml
+
+            # Pro version (recommended for advanced crawling)
+            all_in_one_scraper_pro.exe -targets targets.yaml -depth 2 -dl-workers 3
             ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
